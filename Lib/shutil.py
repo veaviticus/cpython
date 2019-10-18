@@ -344,11 +344,12 @@ def copytree(src, dst, symlinks=False, ignore=None, copy_function=copy2,
                     # otherwise let the copy occurs. copy2 will raise an error
                     if os.path.isdir(srcname):
                         copytree(srcname, dstname, symlinks, ignore,
-                                 copy_function)
+                                 copy_function, ignore_dangling_symlinks)
                     else:
                         copy_function(srcname, dstname)
             elif os.path.isdir(srcname):
-                copytree(srcname, dstname, symlinks, ignore, copy_function)
+                copytree(srcname, dstname, symlinks, ignore, copy_function,
+                    ignore_dangling_symlinks)
             else:
                 # Will raise a SpecialFileError for unsupported file types
                 copy_function(srcname, dstname)

@@ -887,24 +887,55 @@ class TestShutil(unittest.TestCase):
 
     @support.skip_unless_symlink
     def test_copytree_dangling_symlinks(self):
-
-        # a dangling symlink raises an error at the end
+        # build src dir with dangling symlinks
         src_dir = self.mkdtemp()
+        valid_file = os.path.join(src_dir, 'test.txt')
+        write_file(valid_file, 'abc')
+        os.symlink('IDONTEXIST', os.path.join(src_dir, 'broken'))
+        os.symlink(valid_file, os.path.join(src_dir, 'valid'))
+
+        dir_a = os.path.join(src_dir, 'dir_a')
+        os.mkdir(dir_a)
+        os.symlink('IDONTEXIST', os.path.join(dir_a, 'broken'))
+        os.symlink(valid_file, os.path.join(dir_a, 'valid'))
+
+        # dangling symlink raises an error at the end
         dst_dir = os.path.join(self.mkdtemp(), 'destination')
-        os.symlink('IDONTEXIST', os.path.join(src_dir, 'test.txt'))
-        os.mkdir(os.path.join(src_dir, 'test_dir'))
-        write_file((src_dir, 'test_dir', 'test.txt'), '456')
         self.assertRaises(Error, shutil.copytree, src_dir, dst_dir)
 
-        # a dangling symlink is ignored with the proper flag
+        # dangling symlinks are ignored with the proper flag
         dst_dir = os.path.join(self.mkdtemp(), 'destination2')
-        shutil.copytree(src_dir, dst_dir, ignore_dangling_symlinks=True)
-        self.assertNotIn('test.txt', os.listdir(dst_dir))
+        try:
+            shutil.copytree(src_dir, dst_dir, ignore_dangling_symlinks=True)
+        except shutil.Error as err:
+            self.fail((
+                "copytree raised Error due to dangling symlink"
+                " even with ignore_dangling_symlinks enabled"
+            ))
+        for root, dirs, files in os.walk('destination2'):
+            if 'broken' in files:
+                self.fail((
+                    "dangling symlink copied while ignore_dangling_symlinks"
+                    " was enabled"
+                ))
+            if 'valid' not in files:
+                self.fail((
+                    "valid symlink was not copied while ignore_dangling_symlinks"
+                    " was enabled"
+                ))
+                self.assertTrue(os.path.is_link(os.path.join(
+                    root, dirs, 'valid'
+                )))
 
-        # a dangling symlink is copied if symlinks=True
+        # dangling symlink is copied if symlinks=True
         dst_dir = os.path.join(self.mkdtemp(), 'destination3')
         shutil.copytree(src_dir, dst_dir, symlinks=True)
-        self.assertIn('test.txt', os.listdir(dst_dir))
+        for root, dirs, files in os.walk('destination3'):
+            for name in ('valid', 'broken'):
+                self.assertTrue(name in files)
+                self.assertTrue(os.path.is_link(os.path.join(
+                    root, dirs, name
+                )))
 
     @support.skip_unless_symlink
     def test_copytree_symlink_dir(self):
